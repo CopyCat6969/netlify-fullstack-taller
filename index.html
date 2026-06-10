@@ -67,6 +67,18 @@
     }
     .mensaje b { color: #0f766e; }
     .fecha { color:#64748b; font-size:.85rem; }
+    .contador {
+      font-size: 0.85rem;
+      color: #64748b;
+      display: block;
+      margin-top: 4px;
+      text-align: right;
+    }
+    .btn-danger {
+      background: #b91c1c;
+      margin-top: 8px;
+    }
+    .btn-danger:hover { background: #991b1b; }
     @media(max-width: 800px) {
       main { grid-template-columns: 1fr; }
     }
@@ -90,6 +102,7 @@
 
         <label for="mensaje">Mensaje</label>
         <textarea id="mensaje" name="mensaje" rows="5" placeholder="Escribe un mensaje..." required></textarea>
+        <span id="contadorCaracteres" class="contador">0 caracteres</span>
 
         <button id="btnEnviar" type="submit">Enviar al backend</button>
       </form>
@@ -99,6 +112,7 @@
     <section class="card">
       <h2>Mensajes</h2>
       <button id="btnCargar">Cargar mensajes demo</button>
+      <button id="btnLimpiar" class="btn-danger">Limpiar lista</button>
       <div id="listaMensajes"></div>
     </section>
   </main>
@@ -109,6 +123,9 @@
     const listaMensajes = document.getElementById("listaMensajes");
     const btnEnviar = document.getElementById("btnEnviar");
     const btnCargar = document.getElementById("btnCargar");
+    const btnLimpiar = document.getElementById("btnLimpiar");
+    const txtMensaje = document.getElementById("mensaje");
+    const contadorCaracteres = document.getElementById("contadorCaracteres");
 
     const API_BASE = "/api";
 
@@ -139,14 +156,42 @@
         }
 
         listaMensajes.innerHTML = "";
-        result.data.forEach(renderMensaje);
+        const guardados = JSON.parse(localStorage.getItem("mensajes_locales") || "[]");
+        const combinados = [...result.data, ...guardados];
+        
+        const unicos = Array.from(new Map(combinados.map(item => [item.id, item])).values());
+        unicos.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+        
+        unicos.forEach(renderMensaje);
       } catch (error) {
         listaMensajes.innerHTML = `<p style="color:red">${error.message}</p>`;
       }
     }
 
+    txtMensaje.addEventListener("input", () => {
+      contadorCaracteres.textContent = `${txtMensaje.value.length} caracteres`;
+    });
+
+    btnLimpiar.addEventListener("click", () => {
+      listaMensajes.innerHTML = "";
+      localStorage.removeItem("mensajes_locales");
+    });
+
+    document.addEventListener("DOMContentLoaded", () => {
+      const guardados = JSON.parse(localStorage.getItem("mensajes_locales") || "[]");
+      guardados.forEach(renderMensaje);
+    });
+
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+
+      const textoMensaje = document.getElementById("mensaje").value.trim();
+
+      if (textoMensaje.length < 10) {
+        mostrarEstado("Error: El mensaje debe tener al menos 10 caracteres.", "error");
+        return;
+      }
+
       btnEnviar.disabled = true;
       btnEnviar.textContent = "Enviando...";
       mostrarEstado("Enviando datos al backend...", "ok");
@@ -154,7 +199,7 @@
       const data = {
         nombre: document.getElementById("nombre").value.trim(),
         email: document.getElementById("email").value.trim(),
-        mensaje: document.getElementById("mensaje").value.trim()
+        mensaje: textoMensaje
       };
 
       try {
@@ -172,7 +217,13 @@
 
         mostrarEstado(result.message, "ok");
         renderMensaje(result.data);
+
+        const guardados = JSON.parse(localStorage.getItem("mensajes_locales") || "[]");
+        guardados.push(result.data);
+        localStorage.setItem("mensajes_locales", JSON.stringify(guardados));
+
         form.reset();
+        contadorCaracteres.textContent = "0 caracteres";
       } catch (error) {
         mostrarEstado(error.message, "error");
       } finally {
